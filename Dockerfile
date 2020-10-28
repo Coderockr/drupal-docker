@@ -1,34 +1,25 @@
-FROM php:7.4-apache
+# from https://www.drupal.org/requirements/php#drupalversions
+FROM php:7.2.19-apache
 
-RUN apt-get update
-RUN apt-get install -y \
-    default-mysql-client  \
-    unzip \
-    git \
-    libpq-dev \
-    libjpeg62-turbo-dev \
-    libfreetype6-dev \
-    libwebp-dev \
-    libpng-dev \
-    libxpm-dev \
-    libzip-dev \
-    zip
+RUN a2enmod rewrite
+RUN a2enmod headers
 
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin/ --filename=composer
-RUN a2enmod rewrite && a2enmod ssl
+# install the PHP extensions we need
+RUN apt-get update && apt-get install -y libpq-dev libjpeg-dev libzip-dev libpng-dev zip git mysql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-configure gd --with-png-dir=/usr --with-jpeg-dir=/usr \
+    && docker-php-ext-install gd mbstring opcache pdo pdo_mysql pdo_pgsql zip \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-RUN docker-php-ext-install pdo pdo_mysql opcache zip
-RUN docker-php-ext-configure gd --enable-gd --with-freetype --with-jpeg --with-webp
-RUN cd /usr/src/php/ext/gd && make
-RUN cp /usr/src/php/ext/gd/modules/gd.so /usr/local/lib/php/extensions/no-debug-non-zts-20190902/gd.so
-RUN docker-php-ext-install -j$(nproc) gd
-
+# set recommended PHP.ini settings
+# see https://secure.php.net/manual/en/opcache.installation.php
 RUN { \
-    echo 'opcache.memory_consumption=128'; \
-    echo 'opcache.interned_strings_buffer=8'; \
-    echo 'opcache.max_accelerated_files=4000'; \
-    echo 'opcache.revalidate_freq=60'; \
-    echo 'opcache.fast_shutdown=1'; \
-    echo 'opcache.enable_cli=1'; \
+        echo 'opcache.memory_consumption=128'; \
+        echo 'opcache.interned_strings_buffer=8'; \
+        echo 'opcache.max_accelerated_files=4000'; \
+        echo 'opcache.revalidate_freq=60'; \
+        echo 'opcache.fast_shutdown=1'; \
+        echo 'opcache.enable_cli=1'; \
     } > /usr/local/etc/php/conf.d/opcache-recommended.ini
 
+WORKDIR /var/www/html
